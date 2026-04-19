@@ -1,0 +1,8 @@
+{
+  "name": "八下英语口语支架智能体",
+  "description": "An intelligent English speaking practice agent with dual-track scaffolding and real-time assessment.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
