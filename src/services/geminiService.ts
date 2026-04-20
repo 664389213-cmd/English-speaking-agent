@@ -126,12 +126,11 @@ const response = await fetch('/api/chat', {
   body: JSON.stringify({
     userMessage,
     history: [
-      ...history,
-      { role: 'user', parts: [{ text: userMessage }] }
+      ...messages.map(m => ({ role: m.role, text: m.text })),
+      { role: 'user', text: userMessage }
     ],
     systemInstruction
-  })
-});
+})
 
 if (!response.ok) {
   const errorText = await response.text();
