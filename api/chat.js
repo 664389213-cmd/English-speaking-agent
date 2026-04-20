@@ -1,50 +1,68 @@
-// api/chat.js - 终极自愈版（采用官方下划线字段 + gemini-3-flash-preview）
+// api/chat.js - 最终修复版：CORS + 角色自愈 + 字段映射 + 稳定模型配置
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  // --- 1. 设置 CORS 响应头 ---
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', 'https://www.hello-echo.top');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST, PUT, DELETE');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  // --- 2. 处理浏览器预检请求 (OPTIONS) ---
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // --- 3. 只允许 POST 请求 ---
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
 
   try {
     const { history, systemInstruction } = req.body;
     const API_KEY = process.env.GEMINI_API_KEY;
     if (!API_KEY) throw new Error('Missing GEMINI_API_KEY');
 
-    // --- 核心修复：极致的角色与序列校验 ---
+    // --- 4. 角色序列自愈（确保 user / model 严格交替）---
     let contents = [];
     (history || []).forEach((msg) => {
-      // 自动侦测并转换角色
+      // 自动识别并转换角色
       let role = (msg.role === 'ai' || msg.role === 'model') ? 'model' : 'user';
-      
-      // 强制规则 1：首条消息必须是 user
-      if (contents.length === 0 && role === 'model') return; 
 
-      // 强制规则 2：角色必须严格交替，如果相同则合并内容
+      // 第一条消息必须是 user
+      if (contents.length === 0 && role === 'model') return;
+
+      // 连续相同角色则合并内容
       if (contents.length > 0 && contents[contents.length - 1].role === role) {
-        contents[contents.length - 1].parts[0].text += "\n" + (msg.text || "");
+        contents[contents.length - 1].parts[0].text += '\n' + (msg.text || '');
         return;
       }
 
       contents.push({
         role: role,
-        parts: [{ text: msg.text || "" }]
+        parts: [{ text: msg.text || '' }]
       });
     });
 
-    // 强制规则 3：末尾不能是 model（API 要求最后一条是 user）
+    // 最后一条不能是 model（API 要求以 user 结尾）
     if (contents.length > 0 && contents[contents.length - 1].role === 'model') {
       contents.pop();
     }
 
-    // 使用 gemini-3-flash-preview 模型（最新高性能版本）
+    // --- 5. 调用 Gemini API（使用稳定的模型和版本）---
+    // 模型：gemini-2.0-flash-exp（免费且 JSON 模式稳定）
+    // 版本：v1beta（对 system_instruction 支持最完善）
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-3-flash-preview:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: contents,
-          // 官方标准字段名：下划线形式
           system_instruction: { parts: [{ text: systemInstruction }] },
           generationConfig: {
-            responseMimeType: "application/json",
+            responseMimeType: 'application/json',
             temperature: 0.7
           }
         })
@@ -68,15 +86,15 @@ export default async function handler(req, res) {
       throw new Error('AI output was not valid JSON');
     }
 
-    // 字段映射 + 安全默认值（覆盖各种可能的字段名变体）
+    // --- 6. 字段映射与安全默认值 ---
     const scaffoldSource = aiObj.dynamic_scaffolding || aiObj.scaffolding || {};
     const standardized = {
       ai_reply: aiObj.ai_reply || aiObj.response || aiObj.reply || aiObj.text || aiObj.answer || "I'm sorry, I couldn't understand that. Could you try again?",
-      grammar_feedback: aiObj.grammar_feedback || aiObj.feedback || "",
+      grammar_feedback: aiObj.grammar_feedback || aiObj.feedback || '',
       next_phase_suggestion: aiObj.next_phase_suggestion ?? false,
       is_session_end: aiObj.is_session_end ?? false,
-      summary_evaluation: aiObj.summary_evaluation || "",
-      phoneme_assessment_placeholder: aiObj.phoneme_assessment_placeholder || "N/A",
+      summary_evaluation: aiObj.summary_evaluation || '',
+      phoneme_assessment_placeholder: aiObj.phoneme_assessment_placeholder || 'N/A',
       word_assessment_simulated: aiObj.word_assessment_simulated || aiObj.word_assessment || [],
       dynamic_scaffolding: {
         fullSentences: scaffoldSource.fullSentences || [],
@@ -90,14 +108,14 @@ export default async function handler(req, res) {
     res.status(200).json(standardized);
   } catch (error) {
     console.error('Final Proxy Error:', error.message);
-    // 即使出错也返回一个完整结构，避免前端崩溃
+    // 降级返回：避免前端崩溃
     res.status(200).json({
       ai_reply: "I'm back! Could you please repeat that? I had a quick technical glitch.",
-      grammar_feedback: "System Logic Fixed.",
+      grammar_feedback: 'System Logic Fixed.',
       next_phase_suggestion: false,
       is_session_end: false,
-      summary_evaluation: "",
-      phoneme_assessment_placeholder: "N/A",
+      summary_evaluation: '',
+      phoneme_assessment_placeholder: 'N/A',
       word_assessment_simulated: [],
       dynamic_scaffolding: {
         fullSentences: [],
