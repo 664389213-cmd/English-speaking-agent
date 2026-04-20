@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { AIReply, Level, Message, Phase, Scene, Unit } from '../types';
 
-// 注意：现在尝试通过后端代理调用以增强稳定性并隐藏 API Key
-// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// 注意：现在不再直接使用 SDK，而是通过后端代理调用，所以 ai 实例已无实际作用，但保留不会影响
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const replySchema: Schema = {
   type: Type.OBJECT,
@@ -113,9 +113,9 @@ export async function generateAIResponse(
 
 Return STRICT JSON.`;
 
-  // 构建干净的历史记录（只传递角色和文本）
+  // 构建干净的历史记录（只传递角色和文本，不包含 parts 嵌套）
   const historyPayload = [
-    ...messages.map(m => ({ role: m.role === 'ai' ? 'model' : 'user', text: m.text })),
+    ...messages.map(m => ({ role: m.role, text: m.text })),
     { role: 'user', text: userMessage }
   ];
 
