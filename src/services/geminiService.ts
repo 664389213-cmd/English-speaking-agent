@@ -120,26 +120,26 @@ Always return JSON adhering to the schema.`;
 
   while (attempts < maxAttempts) {
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [
-          ...history,
-          { role: 'user', parts: [{ text: userMessage }] }
-        ],
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: replySchema,
-          temperature: 0.7,
-        }
-      });
+const response = await fetch('/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userMessage,
+    history: [
+      ...history,
+      { role: 'user', parts: [{ text: userMessage }] }
+    ],
+    systemInstruction
+  })
+});
 
-      const text = response.text;
-      if (!text) {
-        throw new Error('No response from Gemini');
-      }
+if (!response.ok) {
+  const errorText = await response.text();
+  throw new Error(`Backend error: ${response.status} - ${errorText}`);
+}
 
-      return JSON.parse(text) as AIReply;
+const data = await response.json();
+return data as AIReply;
     } catch (error: any) {
       attempts++;
       if (error?.status === 429 && attempts < maxAttempts) {
