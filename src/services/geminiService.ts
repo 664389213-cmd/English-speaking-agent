@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { AIReply, Level, Message, Phase, Scene, Unit } from '../types';
 
-// The system automatically provides process.env.GEMINI_API_KEY
+// 注意：现在不再使用 SDK 直接调用，所以 ai 实例其实已不再需要，但保留也不影响
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const replySchema: Schema = {
@@ -33,13 +33,13 @@ const replySchema: Schema = {
     },
     word_assessment_simulated: {
       type: Type.ARRAY,
-      description: "A word-by-word assessment of the user's PREVIOUS message. If a word is yellow/red, try to guess what the user 'might' have been trying to say if it was mis-recognized (e.g. recognized 'all-known' but they meant 'unknown') and put it in 'suggestion'.",
+      description: "A word-by-word assessment of the user's PREVIOUS message.",
       items: {
         type: Type.OBJECT,
         properties: {
           word: { type: Type.STRING },
           score: { type: Type.STRING, enum: ["green", "yellow", "red"] },
-          suggestion: { type: Type.STRING, description: "If word is yellow/red, offer a 'did you mean' guess based on context." }
+          suggestion: { type: Type.STRING }
         },
         required: ["word", "score"]
       }
@@ -50,7 +50,7 @@ const replySchema: Schema = {
       properties: {
         fullSentences: { type: Type.ARRAY, items: { type: Type.STRING } },
         starters: { type: Type.ARRAY, items: { type: Type.STRING } },
-        hints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Leading guiding answers or ideas for the NEXT question (specifically for Level L2)." },
+        hints: { type: Type.ARRAY, items: { type: Type.STRING } },
         keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
         advancedPhrases: { 
           type: Type.ARRAY, 
@@ -81,6 +81,7 @@ export async function generateAIResponse(
 ): Promise<AIReply> {
   const isFinalPhase = scene.phases.indexOf(currentPhase) === scene.phases.length - 1;
 
+  // 强化 JSON Schema 定义的 systemInstruction
   const systemInstruction = `You are an intelligent and friendly English speaking practice agent for middle school students. 
 
 TEXTBOOK ALIGNMENT (CRITICAL):
@@ -108,41 +109,61 @@ Guidelines:
 6. FINAL WRAP-UP: If ${isFinalPhase} and you feel the session should end, set 'is_session_end: true'.
 7. WORD ASSESSMENT: Word-by-word scores for "${userMessage}".
 
-Always return JSON adhering to the schema.`;
+Always return valid JSON following this EXACT schema:
+{
+  "ai_reply": "string (your spoken response)",
+  "grammar_feedback": "string (feedback on student's last input)",
+  "next_phase_suggestion": boolean,
+  "is_session_end": boolean,
+  "summary_evaluation": "string",
+  "phoneme_assessment_placeholder": "string",
+  "word_assessment_simulated": [{"word": "string", "score": "green/yellow/red", "suggestion": "string"}],
+  "dynamic_scaffolding": {
+    "fullSentences": ["string"],
+    "starters": ["string"],
+    "keywords": ["string"],
+    "hints": ["string"],
+    "advancedPhrases": [{"phrase": "string", "translation": "string"}]
+  }
+}`;
 
-  const history = messages.map(msg => ({
-    role: msg.role === 'ai' ? 'model' : 'user',
-    parts: [{ text: msg.text }]
+  // 构造 Gemini 原生格式的历史记录（role + parts）
+  const cleanHistory = messages.map(m => ({
+    role: m.role === 'ai' ? 'model' : 'user',
+    parts: [{ text: m.text }]
   }));
+
+  // 如果最后一条不是当前用户消息，则追加（避免重复）
+  if (cleanHistory.length === 0 || cleanHistory[cleanHistory.length - 1].parts[0].text !== userMessage) {
+    cleanHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+  }
 
   let attempts = 0;
   const maxAttempts = 2;
 
   while (attempts < maxAttempts) {
     try {
-const response = await fetch('/api/chat', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    userMessage,
-    history: [
-      ...messages.map(m => ({ role: m.role, text: m.text })),
-      { role: 'user', text: userMessage }
-    ],
- systemInstruction
-    })
-  });
-if (!response.ok) {
-  const errorText = await response.text();
-  throw new Error(`Backend error: ${response.status} - ${errorText}`);
-}
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userMessage,
+          history: cleanHistory,
+          systemInstruction
+        })
+      });
 
-const data = await response.json();
-return data as AIReply;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Backend error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data as AIReply;
     } catch (error: any) {
       attempts++;
       if (error?.status === 429 && attempts < maxAttempts) {
-        await delay(2000); // 2 second backoff
+        await delay(2000);
         continue;
       }
       
