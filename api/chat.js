@@ -1,4 +1,4 @@
-// api/chat.js
+// api/chat.js - 最终版
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -7,35 +7,77 @@ export default async function handler(req, res) {
     try {
         const { userMessage, history, systemInstruction } = req.body;
         const API_KEY = process.env.GEMINI_API_KEY;
+        if (!API_KEY) {
+            throw new Error('Missing GEMINI_API_KEY');
+        }
 
-        // 注意：这里我们使用 v1beta 接口以支持最新的 Flash 模型和 JSON Mode
         const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${API_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: history, // 前端已经处理好了格式
+                    contents: history,
                     systemInstruction: { parts: [{ text: systemInstruction }] },
                     generationConfig: {
-                        responseMimeType: "application/json", // 强制要求返回 JSON
+                        responseMimeType: "application/json",
                     }
                 })
             }
         );
 
-        const data = await response.json();
-        
-        // 关键：Gemini 返回的是一个 JSON 字符串，我们需要解析它
-        const rawResponseRole = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!rawResponseRole) throw new Error("AI 未返回内容");
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Gemini API error:', response.status, errorText);
+            throw new Error(`Gemini API error ${response.status}`);
+        }
 
-        // 直接由于前端已经定义好了 Schema，这里原样返回给前端解析即可
-        const aiReplyObj = JSON.parse(rawResponseRole);
-        
-        res.status(200).json(aiReplyObj);
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) throw new Error('AI returned empty response');
+
+        const aiObj = JSON.parse(rawText);
+
+        // 提取 scaffolding 对象（兼容两种字段名）
+        const scaffoldSource = aiObj.dynamic_scaffolding || aiObj.scaffolding || {};
+
+        // 构造标准化回复，确保前端永远不会拿到 undefined
+        const standardized = {
+            ai_reply: aiObj.ai_reply || aiObj.response || aiObj.reply || aiObj.text || "I'm sorry, I couldn't generate a response.",
+            grammar_feedback: aiObj.grammar_feedback || "",
+            next_phase_suggestion: aiObj.next_phase_suggestion ?? false,
+            is_session_end: aiObj.is_session_end ?? false,
+            summary_evaluation: aiObj.summary_evaluation || "",
+            phoneme_assessment_placeholder: aiObj.phoneme_assessment_placeholder || "N/A",
+            word_assessment_simulated: aiObj.word_assessment_simulated || aiObj.word_assessment || [],
+            dynamic_scaffolding: {
+                fullSentences: scaffoldSource.fullSentences || [],
+                starters: scaffoldSource.starters || [],
+                hints: scaffoldSource.hints || [],
+                keywords: scaffoldSource.keywords || [],
+                advancedPhrases: scaffoldSource.advancedPhrases || []
+            }
+        };
+
+        res.status(200).json(standardized);
     } catch (error) {
-        console.error('Proxy Error:', error);
-        res.status(500).json({ error: error.message });
+        console.error('API Error:', error);
+        // 即使出错也返回标准结构，避免前端崩溃
+        res.status(200).json({
+            ai_reply: "I'm sorry, my brain is a bit foggy right now. Could you try again in a moment?",
+            grammar_feedback: "System temporarily unavailable.",
+            next_phase_suggestion: false,
+            is_session_end: false,
+            summary_evaluation: "",
+            phoneme_assessment_placeholder: "N/A",
+            word_assessment_simulated: [],
+            dynamic_scaffolding: {
+                fullSentences: [],
+                starters: [],
+                hints: [],
+                keywords: [],
+                advancedPhrases: []
+            }
+        });
     }
 }
