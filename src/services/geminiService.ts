@@ -125,7 +125,7 @@ Return STRICT JSON.`;
   while (attempts < maxAttempts) {
     try {
       // 通过优化后的 API 子域名请求后端代理
-      const response = await fetch('https://api.hello-echo.top/api/chat', {
+      const response = await fetch('english-speaking-agent-one.vercel.app/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
