@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { AIReply, Level, Message, Phase, Scene, Unit } from '../types';
 
-// The system automatically provides process.env.GEMINI_API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// 注意：现在尝试通过后端代理调用以增强稳定性并隐藏 API Key
+// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const replySchema: Schema = {
   type: Type.OBJECT,
@@ -113,40 +113,38 @@ export async function generateAIResponse(
 
 Return STRICT JSON.`;
 
-  const history = messages.map(msg => ({
-    role: msg.role === 'ai' ? 'model' : 'user',
-    parts: [{ text: msg.text }]
-  }));
+  // 构建干净的历史记录（只传递角色和文本）
+  const historyPayload = [
+    ...messages.map(m => ({ role: m.role === 'ai' ? 'model' : 'user', text: m.text })),
+    { role: 'user', text: userMessage }
+  ];
 
   let attempts = 0;
   const maxAttempts = 2;
 
   while (attempts < maxAttempts) {
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [
-          ...history,
-          { role: 'user', parts: [{ text: userMessage }] }
-        ],
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: replySchema,
-          temperature: 0.7,
-        }
+      // 通过优化后的 API 子域名请求后端代理
+      const response = await fetch('https://api.hello-echo.top/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          history: historyPayload,
+          systemInstruction
+        })
       });
 
-      const text = response.text;
-      if (!text) {
-        throw new Error('No response from Gemini');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Backend error: ${response.status} - ${errorText}`);
       }
 
-      return JSON.parse(text) as AIReply;
+      const data = await response.json();
+      return data as AIReply;
     } catch (error: any) {
       attempts++;
       if (error?.status === 429 && attempts < maxAttempts) {
-        await delay(2000); // 2 second backoff
+        await delay(2000);
         continue;
       }
       
