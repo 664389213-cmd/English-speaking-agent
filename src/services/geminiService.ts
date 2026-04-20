@@ -129,9 +129,9 @@ const response = await fetch('/api/chat', {
       ...messages.map(m => ({ role: m.role, text: m.text })),
       { role: 'user', text: userMessage }
     ],
-    systemInstruction
-})
-
+ systemInstruction
+    })
+  });
 if (!response.ok) {
   const errorText = await response.text();
   throw new Error(`Backend error: ${response.status} - ${errorText}`);
