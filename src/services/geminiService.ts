@@ -81,7 +81,6 @@ export async function generateAIResponse(
 ): Promise<AIReply> {
   const isFinalPhase = scene.phases.indexOf(currentPhase) === scene.phases.length - 1;
 
-  // 强化 JSON Schema 定义的 systemInstruction
   const systemInstruction = `You are an intelligent and friendly English speaking practice agent for middle school students. 
 
 TEXTBOOK ALIGNMENT (CRITICAL):
@@ -127,15 +126,20 @@ Always return valid JSON following this EXACT schema:
   }
 }`;
 
-  // 构造 Gemini 原生格式的历史记录（role + parts）
-  const cleanHistory = messages.map(m => ({
-    role: m.role === 'ai' ? 'model' : 'user',
-    parts: [{ text: m.text }]
-  }));
+  // 【核心修复】构建干净、无重复的历史记录
+  const historyForBackend = messages
+    .filter(m => m.text && m.text.trim() !== '') // 过滤空消息
+    .map(m => ({
+      role: m.role === 'ai' ? 'model' : 'user',
+      text: m.text
+    }));
 
-  // 如果最后一条不是当前用户消息，则追加（避免重复）
-  if (cleanHistory.length === 0 || cleanHistory[cleanHistory.length - 1].parts[0].text !== userMessage) {
-    cleanHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+  // 如果当前用户消息尚未包含在历史中，才追加（避免重复）
+  if (
+    historyForBackend.length === 0 ||
+    historyForBackend[historyForBackend.length - 1].text !== userMessage
+  ) {
+    historyForBackend.push({ role: 'user', text: userMessage });
   }
 
   let attempts = 0;
@@ -147,8 +151,7 @@ Always return valid JSON following this EXACT schema:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userMessage,
-          history: cleanHistory,
+          history: historyForBackend,
           systemInstruction
         })
       });
@@ -166,9 +169,9 @@ Always return valid JSON following this EXACT schema:
         await delay(2000);
         continue;
       }
-      
+
       console.error('Error generating AI response:', error);
-      
+
       if (error?.status === 429) {
         return {
           ai_reply: "Oops! My brain is a bit busy right now (Quota Reached). Please wait a moment before asking again. / 提问太快啦，请稍等一会儿再试哦。",
