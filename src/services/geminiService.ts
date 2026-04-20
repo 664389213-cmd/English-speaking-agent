@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { AIReply, Level, Message, Phase, Scene, Unit } from '../types';
 
-// 注意：现在不再使用 SDK 直接调用，所以 ai 实例其实已不再需要，但保留也不影响
+// The system automatically provides process.env.GEMINI_API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const replySchema: Schema = {
@@ -9,11 +9,11 @@ const replySchema: Schema = {
   properties: {
     ai_reply: {
       type: Type.STRING,
-      description: 'The natural conversational reply from the AI to the user.',
+      description: 'The natural conversational reply from the AI to the user. Speak ONLY in English. Do NOT include any Chinese translations, brackets, or phonetic symbols in this field.',
     },
     grammar_feedback: {
       type: Type.STRING,
-      description: 'Specific feedback on the user\'s grammar and vocabulary.',
+      description: 'Specific feedback on the user\'s grammar and vocabulary. Chinese/English mix is preferred here.',
     },
     next_phase_suggestion: {
       type: Type.BOOLEAN,
@@ -33,13 +33,13 @@ const replySchema: Schema = {
     },
     word_assessment_simulated: {
       type: Type.ARRAY,
-      description: "A word-by-word assessment of the user's PREVIOUS message.",
+      description: "A word-by-word assessment of the user's PREVIOUS message. If a word is yellow/red, try to guess what the user 'might' have been trying to say if it was mis-recognized (e.g. recognized 'all-known' but they meant 'unknown') and put it in 'suggestion'.",
       items: {
         type: Type.OBJECT,
         properties: {
           word: { type: Type.STRING },
           score: { type: Type.STRING, enum: ["green", "yellow", "red"] },
-          suggestion: { type: Type.STRING }
+          suggestion: { type: Type.STRING, description: "If word is yellow/red, offer a 'did you mean' guess based on context." }
         },
         required: ["word", "score"]
       }
@@ -50,7 +50,7 @@ const replySchema: Schema = {
       properties: {
         fullSentences: { type: Type.ARRAY, items: { type: Type.STRING } },
         starters: { type: Type.ARRAY, items: { type: Type.STRING } },
-        hints: { type: Type.ARRAY, items: { type: Type.STRING } },
+        hints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Leading guiding answers or ideas for the NEXT question (specifically for Level L2)." },
         keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
         advancedPhrases: { 
           type: Type.ARRAY, 
@@ -81,97 +81,77 @@ export async function generateAIResponse(
 ): Promise<AIReply> {
   const isFinalPhase = scene.phases.indexOf(currentPhase) === scene.phases.length - 1;
 
-  const systemInstruction = `You are an intelligent and friendly English speaking practice agent for middle school students. 
+  const systemInstruction = `You are an empathetic and professional English speaking partner for 8th-grade middle school students. 
 
-TEXTBOOK ALIGNMENT (CRITICAL):
-You MUST prioritize phrases and grammar from ${unit.title}:
-- Key words: ${scene.preTaskReview.words.join(', ')}
-- Key patterns: ${scene.preTaskReview.phrases.join(', ')}
+# SCENE CONTEXT
+- **Unit**: ${unit.title} (${unit.titleCn})
+- **Scene**: ${scene.title} (${scene.titleCn})
+- **Your Role/Setting**: ${scene.context} 
+- **Conversation Phase**: ${currentPhase.name}
+- **Current AI Goal**: ${currentPhase.aiGoal}
 
-Current Context:
-- Unit: ${unit.title} (${unit.titleCn})
-- Scene: ${scene.title} (${scene.titleCn})
-- Setting/Roles: ${scene.context}
-- Student Level: ${level}
-- Current Phase: ${currentPhase.name} (Goal: ${currentPhase.aiGoal})
-- Is Final Phase: ${isFinalPhase}
+# CORE PERSONALITY & TONE
+- NATURAL CONVERSATION (EQ ABOVE ALL): Do NOT just list vocabulary. You must first acknowledge what the student said with empathy (e.g., "That sounds lovely!", "I totally get that.") before guiding them forward.
+- NATURAL BRIDGE: Use phrases like "Actually...", "By the way...", "That reminds me..." to transition.
+- VOCABULARY LEVEL: Strictly use Middle School (CEFR A2) level. Do NOT use advanced words like 'recruit' or 'facilitate'. Use natural, idiomatic English (e.g., "piece of cake", "on the same page") but Speak ONLY in English in 'ai_reply'. No brackets or Chinese.
+- ANTI-REPETITION: Never repeat a statement you just made. If you already said "Yoga is good for stress", do NOT say it again in the next turn.
 
-Guidelines:
-1. CONCISENESS: Max 30 words. BOLD ONLY your questions (wrap them in **). Do not bold anything else.
-2. TEXTBOOK LANGUAGE: Use the vocabulary/patterns listed above naturally.
-3. IRRELEVANT ANSWER DETECTION: If user's "${userMessage}" is off-topic, flag it in 'grammar_feedback'.
-4. VOICE DIAGNOSIS GUESS: In 'word_assessment_simulated', if you see a word that's obviously a mis-recognition based on common phonetic similarities (e.g., student said 'unknown' but it recognized 'all-known', or said 'calligraphy' but it recognized 'curly-graphy'), set the score to 'yellow' or 'red' and provide the correct word in 'suggestion'.
-5. SCAFFOLDING:
-   - Level L1: fullSentences.
-   - Level L2: starters, keywords, and 'hints' (leading guiding answers or ideas).
-   - Level L3: keywords, advancedPhrases.
-6. FINAL WRAP-UP: If ${isFinalPhase} and you feel the session should end, set 'is_session_end: true'.
-7. WORD ASSESSMENT: Word-by-word scores for "${userMessage}".
+# STRATEGIC GUIDANCE
+1. ROLEPLAY CONSISTENCY: Be fully in character based on the # SCENE CONTEXT. If you are a doctor, talk like one. If you are a friend at a playground, be casual.
+2. ACKNOWLEDGE: Briefly react to the student's message ideas.
+3. DIG DEEPER: If the student mentions a hobby or feeling (like Yoga), ask about the details, personal benefits, or their favorite part of it (e.g., "How do you feel after a session?") instead of quickly moving to the next generic question.
+4. GUIDE & PROMPT: Naturally pivot the conversation to address the "Current AI Goal". **BOLD your specific questions (wrap them in **)**.
+5. CONCISENESS: Max 30 words. No lecturing. No repeating known facts.
+6. TARGET LANGUAGE: Nudge the student to use these words: ${scene.preTaskReview.words.join(', ')} and patterns: ${scene.preTaskReview.phrases.join(', ')}.
 
-Always return valid JSON following this EXACT schema:
-{
-  "ai_reply": "string (your spoken response)",
-  "grammar_feedback": "string (feedback on student's last input)",
-  "next_phase_suggestion": boolean,
-  "is_session_end": boolean,
-  "summary_evaluation": "string",
-  "phoneme_assessment_placeholder": "string",
-  "word_assessment_simulated": [{"word": "string", "score": "green/yellow/red", "suggestion": "string"}],
-  "dynamic_scaffolding": {
-    "fullSentences": ["string"],
-    "starters": ["string"],
-    "keywords": ["string"],
-    "hints": ["string"],
-    "advancedPhrases": [{"phrase": "string", "translation": "string"}]
-  }
-}`;
+# OUTPUT REQUIREMENTS
+- 'ai_reply': PURE ENGLISH ONLY. No Chinese. No brackets. 
+- 'grammar_feedback': Helpful feedback (Chinese/English mix is preferred).
+- 'word_assessment_simulated': Word-by-word score.
+- 'dynamic_scaffolding': Provide help for their NEXT turn.
+- 'is_session_end': Set true only if ${isFinalPhase} and the conversation naturally concludes.
 
-  // 【核心修复】构建干净、无重复的历史记录
-  const historyForBackend = messages
-    .filter(m => m.text && m.text.trim() !== '') // 过滤空消息
-    .map(m => ({
-      role: m.role === 'ai' ? 'model' : 'user',
-      text: m.text
-    }));
+Return STRICT JSON.`;
 
-  // 如果当前用户消息尚未包含在历史中，才追加（避免重复）
-  if (
-    historyForBackend.length === 0 ||
-    historyForBackend[historyForBackend.length - 1].text !== userMessage
-  ) {
-    historyForBackend.push({ role: 'user', text: userMessage });
-  }
+  const history = messages.map(msg => ({
+    role: msg.role === 'ai' ? 'model' : 'user',
+    parts: [{ text: msg.text }]
+  }));
 
   let attempts = 0;
   const maxAttempts = 2;
 
   while (attempts < maxAttempts) {
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          history: historyForBackend,
-          systemInstruction
-        })
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [
+          ...history,
+          { role: 'user', parts: [{ text: userMessage }] }
+        ],
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: replySchema,
+          temperature: 0.7,
+        }
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Backend error: ${response.status} - ${errorText}`);
+      const text = response.text;
+      if (!text) {
+        throw new Error('No response from Gemini');
       }
 
-      const data = await response.json();
-      return data as AIReply;
+      return JSON.parse(text) as AIReply;
     } catch (error: any) {
       attempts++;
       if (error?.status === 429 && attempts < maxAttempts) {
-        await delay(2000);
+        await delay(2000); // 2 second backoff
         continue;
       }
-
+      
       console.error('Error generating AI response:', error);
-
+      
       if (error?.status === 429) {
         return {
           ai_reply: "Oops! My brain is a bit busy right now (Quota Reached). Please wait a moment before asking again. / 提问太快啦，请稍等一会儿再试哦。",

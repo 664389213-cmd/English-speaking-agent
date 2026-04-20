@@ -24,7 +24,7 @@ export const UNITS: Unit[] = [
           words: ['calligraphy', 'skiing', 'programming', 'yoga', 'painting', 'stress', 'achievement'],
           phrases: ['in my free time', 'get into', 'reduce stress']
         },
-        fixedOpening: "Hi there! I'm so glad we're hanging out at the school playground today. There are so many hobby clubs recruiting new members. **What do you usually do in your free time to relax?**",
+        fixedOpening: "Hi there! I'm so glad we're hanging out at the school playground today. There are so many hobby clubs finding new members. **What do you usually do in your free time to relax?**",
         phases: [
           { name: '1. Breaking the Ice', nameCn: '1. 破冰热身', aiGoal: 'Greet the student and talk about free time activities.', userHint: 'Greet back and say what you usually do after school.' },
           { name: '2. Digging Deeper (Why?)', nameCn: '2. 深入交流 (目的)', aiGoal: 'Ask about the benefits of their hobby. Use "to relax" or "to reduce stress".', userHint: 'Explain why you like the hobby using "to...".' },

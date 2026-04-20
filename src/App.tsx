@@ -11,6 +11,32 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function RippleBackground() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+      {[...Array(3)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/20"
+          initial={{ width: 0, height: 0, opacity: 0.5 }}
+          animate={{
+            width: ['0%', '200%'],
+            height: ['0%', '200%'],
+            opacity: [0.5, 0],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            delay: i * 2.5,
+            ease: "easeOut",
+          }}
+        />
+      ))}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-white/40 backdrop-blur-[100px]" />
+    </div>
+  );
+}
+
 export default function App() {
   const [setupComplete, setSetupComplete] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit>(UNITS[0]);
@@ -28,10 +54,12 @@ export default function App() {
   const [liveSpeech, setLiveSpeech] = useState<{text: string, score: 'green' | 'yellow' | 'red'} | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const isRecognitionStarted = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [sessionSummary, setSessionSummary] = useState<string | null>(null);
 
@@ -51,45 +79,63 @@ export default function App() {
   }, [selectedUnit]);
 
   const toggleRecording = async () => {
-    if (isRecording) {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      recognitionRef.current?.stop();
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(false);
-      setIsAwaitingSend(true);
-    } else {
-      setInputText('');
-      setLiveSpeech(null); 
-      setPendingAudioUrl(null);
-      setIsAwaitingSend(false);
-      audioChunksRef.current = [];
+    if (isProcessing) return;
+    setIsProcessing(true);
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
+    try {
+      if (isRecording) {
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        try {
+          recognitionRef.current?.stop();
+        } catch (e) {
+          console.warn("Recognition Stop Error", e);
+        }
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+        setIsAwaitingSend(true);
+      } else {
+        setInputText('');
+        setLiveSpeech(null); 
+        setPendingAudioUrl(null);
+        setIsAwaitingSend(false);
+        audioChunksRef.current = [];
 
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorderRef.current = mediaRecorder;
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              audioChunksRef.current.push(event.data);
+            }
+          };
+
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            setPendingAudioUrl(audioUrl);
+            stream.getTracks().forEach(track => track.stop());
+          };
+
+          mediaRecorder.start();
+          try {
+            if (recognitionRef.current && !isRecognitionStarted.current) {
+              recognitionRef.current.start();
+            }
+          } catch (recognitionError) {
+            console.error("SpeechRecognition Start Error:", recognitionError);
           }
-        };
-
-        mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-          const audioUrl = URL.createObjectURL(audioBlob);
-          setPendingAudioUrl(audioUrl);
-          stream.getTracks().forEach(track => track.stop());
-        };
-
-        mediaRecorder.start();
-        recognitionRef.current?.start();
-        setIsRecording(true);
-      } catch (err) {
-        console.error("Mic Permission Error", err);
+          setIsRecording(true);
+        } catch (err) {
+          console.error("Microphone Access Error:", err);
+          alert("Microphone access was denied or failed. Please check your browser's microphone permissions.");
+        }
       }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -136,6 +182,10 @@ export default function App() {
         }
       };
 
+      recognitionRef.current.onstart = () => {
+        isRecognitionStarted.current = true;
+      };
+
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error', event.error);
         setIsRecording(false);
@@ -143,6 +193,7 @@ export default function App() {
       };
 
       recognitionRef.current.onend = () => {
+        isRecognitionStarted.current = false;
         // Recognition stopped - check if we should stop the media recorder too
         if (isRecording) {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -159,6 +210,7 @@ export default function App() {
 
   // Manual send confirmation via UI buttons
   const speakText = (text: string) => {
+    if (!text) return; // Safety check
     const synth = window.speechSynthesis;
     // Just a basic fallback to ensure we don't speak over ourselves
     synth.cancel();
@@ -274,7 +326,7 @@ export default function App() {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'ai',
-        text: resp.ai_reply,
+        text: resp.ai_reply || (typeof resp === 'string' ? resp : 'No response'),
         grammarFeedback: resp.grammar_feedback + (resp.phoneme_assessment_placeholder && resp.phoneme_assessment_placeholder !== 'N/A' ? `\n\n[Phonetics]: ${resp.phoneme_assessment_placeholder}` : ''),
         wordAssessment: resp.word_assessment_simulated,
         dynamicScaffolding: resp.dynamic_scaffolding,
@@ -282,7 +334,7 @@ export default function App() {
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      speakText(resp.ai_reply);
+      speakText(aiMessage.text);
 
       if (resp.is_session_end && resp.summary_evaluation) {
         setSessionSummary(resp.summary_evaluation);
@@ -301,90 +353,149 @@ export default function App() {
 
   if (!setupComplete) {
     return (
-      <div className="min-h-screen bg-brand-bg text-text-main flex items-center justify-center p-4 font-sans">
-        <div className="bg-card rounded-3xl shadow-2xl p-0 max-w-2xl w-full border border-brand-border overflow-hidden flex flex-col md:flex-row">
-          <div className="md:w-5/12 bg-primary p-8 text-white flex flex-col justify-between">
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mb-6">
-                <MessageSquare size={24} />
-              </div>
-              <h1 className="text-4xl font-[900] tracking-tighter leading-none mb-2 italic">Let's<br/>talk!</h1>
-              <p className="text-white/70 text-sm font-medium tracking-wide">English Oral Guide & Scaffolding</p>
+      <div className="min-h-screen bg-brand-bg text-text-main flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+        <RippleBackground />
+        
+        <div className="bg-white/80 backdrop-blur-xl rounded-[40px] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] p-0 max-w-4xl w-full border border-white overflow-hidden flex flex-col md:flex-row relative z-10 lg:min-h-[600px]">
+          <div className="md:w-5/12 bg-[#0a0a0a] p-10 text-white flex flex-col justify-between relative overflow-hidden">
+            {/* Design elements */}
+            <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-primary/20 rounded-full blur-[80px]" />
+            <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 bg-success/20 rounded-full blur-[80px]" />
+            
+            <div className="relative z-10">
+              <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center mb-10 border border-white/10 backdrop-blur-md"
+              >
+                <div className="relative">
+                  <MessageSquare size={32} className="text-white" />
+                  <motion.div 
+                    animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    className="absolute inset-0 bg-white/50 rounded-full" 
+                  />
+                </div>
+              </motion.div>
+              
+              <motion.h1 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.8 }}
+                className="text-[56px] leading-[0.9] font-black tracking-tighter mb-6 italic"
+              >
+                <span className="text-primary">Echo</span> your Voice,<br/>
+                <span className="text-primary">Edge</span> into World.
+              </motion.h1>
+              
+              <motion.p 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.4, duration: 0.8 }}
+                className="text-white/60 text-lg font-medium leading-relaxed"
+              >
+                Your AI friend that hears, supports and frees your natural flow.
+              </motion.p>
             </div>
             
-            <div className="mt-12 space-y-4">
-              <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm border border-white/10">
-                <div className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-2">Selected Mode</div>
-                <div className="text-sm font-bold flex items-center gap-2 italic">
-                  <Award size={16}/> {selectedLevel === 'L1' ? 'Beginner (小白级)' : selectedLevel === 'L2' ? 'Intermediate (达人级)' : 'Advanced (大神级)'}
+            <div className="mt-12 space-y-4 relative z-10">
+              <div className="bg-white/5 rounded-3xl p-6 backdrop-blur-xl border border-white/10 group hover:bg-white/10 transition-colors">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-3">Active Integration</div>
+                <div className="text-base font-bold flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  <span className="italic">Ready for {selectedLevel === 'L1' ? 'Beginner' : selectedLevel === 'L2' ? 'Intermediate' : 'Advanced'} Journey</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="md:w-7/12 p-8 max-h-[85vh] overflow-y-auto">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-text-sub uppercase tracking-wider">Course Selection</label>
-                <div className="grid grid-cols-1 gap-3">
-                  <select 
-                    value={selectedUnit.id} 
-                    onChange={e => setSelectedUnit(UNITS.find(u => u.id === e.target.value) || UNITS[0])}
-                    className="w-full p-3 rounded-xl border border-brand-border bg-brand-bg focus:ring-2 focus:ring-primary outline-none transition text-sm font-bold"
-                  >
-                    {UNITS.map(u => (
-                      <option key={u.id} value={u.id}>{u.title} {u.titleCn}</option>
-                    ))}
-                  </select>
-                  <select 
-                    value={selectedScene.id} 
-                    onChange={e => setSelectedScene(selectedUnit.scenes.find(s => s.id === e.target.value) || selectedUnit.scenes[0])}
-                    className="w-full p-3 rounded-xl border border-brand-border bg-brand-bg focus:ring-2 focus:ring-primary outline-none transition text-sm font-bold"
-                  >
-                    {selectedUnit.scenes.map(s => (
-                      <option key={s.id} value={s.id}>{s.title} {s.titleCn}</option>
-                    ))}
-                  </select>
+          <div className="md:w-7/12 p-10 max-h-[90vh] overflow-y-auto bg-white/40">
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-1 h-4 bg-primary rounded-full" />
+                  <label className="text-[11px] font-black text-text-sub uppercase tracking-widest">Global English Course</label>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-text-sub ml-1">SELECT UNIT</span>
+                    <select 
+                      value={selectedUnit.id} 
+                      onChange={e => setSelectedUnit(UNITS.find(u => u.id === e.target.value) || UNITS[0])}
+                      className="w-full p-4 rounded-2xl border border-brand-border bg-white/80 focus:ring-4 focus:ring-primary/10 hover:border-primary/50 outline-none transition-all text-base font-bold appearance-none shadow-sm"
+                    >
+                      {UNITS.map(u => (
+                        <option key={u.id} value={u.id}>{u.title} {u.titleCn}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-text-sub ml-1">SELECT SCENE</span>
+                    <select 
+                      value={selectedScene.id} 
+                      onChange={e => setSelectedScene(selectedUnit.scenes.find(s => s.id === e.target.value) || selectedUnit.scenes[0])}
+                      className="w-full p-4 rounded-2xl border border-brand-border bg-white/80 focus:ring-4 focus:ring-primary/10 hover:border-primary/50 outline-none transition-all text-base font-bold appearance-none shadow-sm"
+                    >
+                      {selectedUnit.scenes.map(s => (
+                        <option key={s.id} value={s.id}>{s.title} {s.titleCn}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-brand-bg rounded-2xl p-5 border border-brand-border space-y-4">
-                 <div>
-                   <div className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">🎯 Target Goals / 目标知晓</div>
-                   <div className="space-y-2">
+              <div className="bg-[#f8f9fa] rounded-[32px] p-8 border border-brand-border/50 space-y-6 relative group overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
+                   <Target size={120} />
+                 </div>
+                 <div className="relative z-10">
+                   <div className="text-[11px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                     <Target size={14} /> Tasks
+                   </div>
+                   <div className="space-y-4">
                      {selectedScene.targetAwareness.map((t, idx) => (
-                       <div key={idx} className="text-xs text-text-main leading-relaxed">
-                         <div className="font-bold">• {t}</div>
-                         <div className="text-text-sub ml-3">{selectedScene.targetAwarenessCn?.[idx]}</div>
+                       <div key={idx} className="group/item">
+                         <div className="flex items-start gap-4">
+                           <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-black">
+                             0{idx+1}
+                           </div>
+                           <div className="space-y-1">
+                             <div className="text-sm font-bold text-text-main group-hover/item:text-primary transition-colors">{t}</div>
+                             <div className="text-xs text-text-sub">{selectedScene.targetAwarenessCn?.[idx]}</div>
+                           </div>
+                         </div>
                        </div>
                      ))}
                    </div>
                  </div>
-                 
-                 <div>
-                   <div className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">📚 Review / 课前重点</div>
-                   <div className="text-xs space-y-1">
-                     <div className="flex gap-2"><span className="font-black text-primary/70 shrink-0">WORDS:</span> <span className="text-text-main font-medium">{selectedScene.preTaskReview.words.join(', ')}</span></div>
-                     <div className="flex gap-2"><span className="font-black text-primary/70 shrink-0">PHRASES:</span> <span className="text-text-main font-medium">{selectedScene.preTaskReview.phrases.join(', ')}</span></div>
-                   </div>
-                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-text-sub uppercase tracking-wider">Difficulty Level</label>
-                <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-1 h-4 bg-primary rounded-full" />
+                  <label className="text-[11px] font-black text-text-sub uppercase tracking-widest">Level</label>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
                   {(['L1', 'L2', 'L3'] as Level[]).map(l => (
                     <button
                       key={l}
                       onClick={() => setSelectedLevel(l)}
                       className={cn(
-                        "py-2.5 rounded-xl border text-[11px] font-black transition-all",
+                        "py-4 rounded-2xl border text-[13px] font-black transition-all relative overflow-hidden",
                         selectedLevel === l 
-                          ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
-                          : "bg-white text-text-sub border-brand-border hover:bg-brand-bg"
+                          ? "bg-primary text-white border-primary shadow-[0_8px_20px_-4px_rgba(var(--primary-rgb),0.3)]" 
+                          : "bg-white text-text-sub border-brand-border hover:bg-brand-bg hover:border-primary/30"
                       )}
                     >
                       {l}
+                      {selectedLevel === l && (
+                        <motion.div 
+                          layoutId="active-level"
+                          className="absolute inset-0 bg-white/10"
+                        />
+                      )}
                     </button>
                   ))}
                 </div>
@@ -392,13 +503,33 @@ export default function App() {
 
               <button 
                 onClick={handleStart}
-                className="w-full bg-primary text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                className="w-full relative group h-[72px]"
               >
-                Enter Immersive Scene
+                <div className="absolute inset-0 bg-primary rounded-3xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                <div className="relative h-full bg-primary text-white rounded-3xl font-black text-base uppercase tracking-[0.2em] shadow-2xl flex items-center justify-center gap-3 overflow-hidden">
+                  <span className="relative z-10">Start</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  
+                  <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                </div>
               </button>
             </div>
           </div>
         </div>
+
+        {/* Footer Text */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.4 }}
+          whileHover={{ opacity: 1 }}
+          className="mt-12 text-center transition-all cursor-default"
+        >
+          <div className="text-[13px] font-medium tracking-[0.4em] uppercase text-text-sub md:flex hidden items-center gap-4">
+            <span className="w-12 h-[1px] bg-text-sub/30" />
+            从课内走向世界，从对话触碰文化
+            <span className="w-12 h-[1px] bg-text-sub/30" />
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -514,10 +645,10 @@ export default function App() {
                       : "bg-white border border-brand-border text-text-main rounded-[22px] rounded-bl-[4px]",
                   )}>
                     {msg.role === 'ai' ? (
-                       <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                       <span dangerouslySetInnerHTML={{ __html: (msg.text || '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                     ) : (
                        <div className="flex flex-col gap-2">
-                         <div>{msg.text}</div>
+                         <div>{msg.text || ''}</div>
                          {msg.audioUrl && (
                             <div className="mt-2 pt-2 border-t border-white/20">
                                <button 
