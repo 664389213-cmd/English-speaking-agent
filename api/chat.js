@@ -58,7 +58,7 @@ if (allowedOrigins.includes(origin)) {
     // 模型：gemini-2.0-flash-exp（免费且 JSON 模式稳定）
     // 版本：v1beta（对 system_instruction 支持最完善）
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
