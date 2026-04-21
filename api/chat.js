@@ -2,7 +2,11 @@
 export default async function handler(req, res) {
   // --- 1. 设置 CORS 响应头 ---
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', 'https://www.hello-echo.top');
+  const allowedOrigins = ['https://hello-echo.top', 'https://www.hello-echo.top'];
+const origin = req.headers.origin;
+if (allowedOrigins.includes(origin)) {
+  res.setHeader('Access-Control-Allow-Origin', origin);
+}
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST, PUT, DELETE');
   res.setHeader(
     'Access-Control-Allow-Headers',
