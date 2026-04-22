@@ -414,9 +414,12 @@ export default function App() {
             <div className="space-y-8">
               <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-1 h-4 bg-primary rounded-full" />
-                  <label className="text-[11px] font-black text-text-sub uppercase tracking-widest">Global English Course</label>
-                </div>
+  <div className="w-1 h-4 bg-primary rounded-full" />
+  <div className="flex flex-col">
+    <label className="text-[11px] font-black text-text-sub uppercase tracking-widest">新人教版英语八年级下册</label>
+    <label className="text-[9px] font-bold text-text-sub/60 uppercase tracking-tight">PEP English(2024) Grade 8, Book 2</label>
+  </div>
+</div>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-bold text-text-sub ml-1">SELECT UNIT</span>
