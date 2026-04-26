@@ -636,6 +636,76 @@ export default function App() {
             </div>
           </div>
 
+          {/* REAL-TIME HELP BOARD (对话上方固定) */}
+          <div className="bg-brand-bg/90 backdrop-blur-md border-b border-brand-border/60 p-4 sticky top-[73px] z-[9] shadow-inner">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-[14px] font-black text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Check size={16} className="bg-primary text-white rounded-full p-0.5"/> 
+                These may be helpful: 别紧张，这些提示会为你提供帮助
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 模块1: Tips 小贴士 */}
+                <div className="bg-white/60 p-3 rounded-2xl border border-brand-border/40 shadow-sm">
+                  <div className="text-[11px] font-black text-primary uppercase mb-2 flex items-center gap-1 opacity-70">
+                    <Check size={12} /> Tips 小贴士
+                  </div>
+                  <div className="text-[13px] font-bold text-text-main leading-relaxed italic">
+                    {selectedScene.phases[currentPhaseIndex].userHint}
+                  </div>
+                </div>
+
+                {/* 模块2: 引导支架 */}
+                <div className="bg-white/60 p-3 rounded-2xl border border-brand-border/40 shadow-sm">
+                  <div className="text-[11px] font-black text-primary uppercase mb-2 flex items-center gap-1 opacity-70">
+                    <Target size={12} /> 
+                    {selectedLevel === 'L1' && 'Full Sentences 完整句子'}
+                    {selectedLevel === 'L2' && 'Helpful Scaffolding 实时支架'}
+                    {selectedLevel === 'L3' && 'Advanced Expressions 地道表达'}
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {/* L1: 完整句子 */}
+                    {selectedLevel === 'L1' && currentFullSentences.map((s, idx) => (
+                      <div key={idx} className="bg-white border border-brand-border/30 px-3 py-1.5 rounded-xl text-[12px] text-text-main font-bold shadow-xs">
+                        "{s}"
+                      </div>
+                    ))}
+                    
+                    {/* L2: 实时支架 (句子开头) */}
+                    {selectedLevel === 'L2' && currentStarters.map((pt, idx) => (
+                      <button 
+                        key={idx} 
+                        onClick={() => setInputText(prev => (prev.length > 0 ? prev + ' ' : '') + pt)}
+                        className="bg-white border border-warning/30 px-3 py-1.5 rounded-xl text-[12px] text-warning-shade font-bold shadow-xs hover:bg-warning/5 transition-colors"
+                      >
+                        {pt}
+                      </button>
+                    ))}
+
+                    {/* L3: 地道表达 */}
+                    {selectedLevel === 'L3' && currentAdvanced.map((ap, idx) => (
+                      <div key={idx} className="bg-white border border-brand-border/30 px-3 py-1 rounded-xl text-[12px] text-text-main flex flex-col font-bold">
+                        <span>{ap.phrase}</span>
+                        <span className="text-[10px] text-text-sub font-medium">{ap.translation}</span>
+                      </div>
+                    ))}
+
+                    {/* 关键词 (作为通用补充) */}
+                    <div className="w-full h-px bg-brand-border/20 my-1" />
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {currentKeywords.map((wd, idx) => (
+                        <span key={idx} className="text-[11px] px-2.5 py-1 bg-primary/5 text-primary rounded-lg font-bold border border-primary/10">
+                          {wd}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Chat Log */}
           <div className="flex-1 overflow-y-auto scroll-smooth flex flex-col gap-6 pb-4 pt-6 px-4">
             <div className="max-w-3xl mx-auto space-y-6 w-full">
@@ -858,121 +928,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Dynamic Scaffolding */}
-          <div className="bg-brand-bg rounded-2xl p-5 border border-brand-border">
-            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-text-sub mb-4 opacity-70">
-              {selectedLevel === 'L1' ? 'Follow and Read' : selectedLevel === 'L2' ? 'Sentence Scaffolding' : 'Advanced Expressions'}
-            </div>
-            
-            <div className="space-y-5">
-              {selectedLevel === 'L1' && (
-                <div>
-                  <div className="text-[11px] font-bold text-primary mb-2 flex items-center gap-1.5">
-                    <MessageSquare size={13} /> TRY SAYING THESE
-                  </div>
-                  <div className="space-y-2">
-                    {currentFullSentences.length > 0 ? (
-                      currentFullSentences.map((s, idx) => (
-                        <div key={idx} className="bg-white border border-brand-border/60 px-3 py-2.5 rounded-xl text-[13px] text-text-main shadow-sm font-medium">
-                          "{s}"
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-xs text-text-sub italic">Greeting the AI...</div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {selectedLevel === 'L2' && (
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-[11px] font-bold text-warning mb-2 flex items-center gap-1.5">
-                      <Target size={13} /> SENTENCE STARTERS
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {currentStarters.map((pt, idx) => (
-                        <button 
-                          key={idx} 
-                          onClick={() => setInputText(prev => (prev.length > 0 ? prev + ' ' : '') + pt)}
-                          className="bg-white border border-warning/30 px-3 py-2 rounded-xl text-[13px] text-warning-shade shadow-sm font-bold hover:bg-warning/5 transition-colors"
-                        >
-                          {pt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {currentHints.length > 0 && (
-                    <div className="bg-success/5 border border-success/20 rounded-xl p-3">
-                      <div className="text-[10px] font-black text-success uppercase mb-2 flex items-center gap-1">
-                        <Target size={10} /> Idea Hints
-                      </div>
-                      <div className="space-y-1.5">
-                        {currentHints.map((h, i) => (
-                          <div key={i} className="text-[11px] font-bold text-success-shade leading-tight">
-                            💡 {h}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selectedLevel === 'L3' && (
-                <div>
-                   <div className="text-[11px] font-bold text-primary mb-2 flex items-center gap-1.5">
-                     <Award size={13} /> IDIOMATIC PHRASES
-                   </div>
-                   <div className="flex flex-col gap-2">
-                      {currentAdvanced.map((ap, idx) => (
-                        <div key={idx} className="bg-white border border-brand-border/60 px-3 py-2 rounded-xl text-[13px] text-text-main shadow-sm">
-                          <div className="font-bold underline decoration-primary/40 decoration-2">{ap.phrase}</div>
-                          <div className="text-[10px] text-text-sub font-medium">{ap.translation}</div>
-                        </div>
-                      ))}
-                   </div>
-                </div>
-              )}
-              {false && (selectedLevel === 'L2' || selectedLevel === 'L3') && (
-                <div>
-                   <div className="text-[11px] font-bold text-primary mb-2 flex items-center gap-1.5">
-                     <MessageSquare size={13} /> {selectedLevel === 'L3' ? 'IDIOMATIC PHRASES' : 'SENTENCE STARTERS'}
-                   </div>
-                   <div className="flex flex-col gap-2">
-                     {selectedLevel === 'L3' ? (
-                        latestAiMessage?.dynamicScaffolding?.advancedPhrases?.map((ap, idx) => (
-                          <div key={idx} className="bg-white border border-brand-border/60 px-3 py-2 rounded-xl text-[13px] text-text-main shadow-sm">
-                            <div className="font-bold underline decoration-primary/40 decoration-2">{ap.phrase}</div>
-                            <div className="text-[10px] text-text-sub font-medium">{ap.translation}</div>
-                          </div>
-                        ))
-                     ) : (
-                        latestAiMessage?.dynamicScaffolding?.starters?.map((pt, idx) => (
-                          <div key={idx} className="bg-white border border-brand-border/60 px-3 py-2 rounded-xl text-[13px] text-text-main shadow-sm">
-                            {pt}
-                          </div>
-                        ))
-                     )}
-                   </div>
-                </div>
-              )}
-
-              <div>
-                <div className="text-[11px] font-bold text-primary mb-2 flex items-center gap-1.5">
-                   <Target size={13} /> KEYWORDS
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {currentKeywords.map((wd, idx) => (
-                    <div key={idx} className="bg-white border border-brand-border/60 px-3 py-1.5 rounded-lg text-xs text-text-main font-semibold shadow-sm hover:text-primary transition-colors cursor-default">
-                      {wd}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Dynamic Scaffolding 部分已被移除，替换为顶部实时帮助板 */}
 
           {/* Pronunciation Coach */}
           <div className="bg-white border border-brand-border rounded-2xl p-5 shadow-sm">
