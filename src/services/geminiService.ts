@@ -104,6 +104,11 @@ export async function generateAIResponse(
 5. CONCISENESS: Max 30 words. No lecturing. No repeating known facts.
 6. TARGET LANGUAGE: Nudge the student to use these words: ${scene.preTaskReview.words.join(', ')} and patterns: ${scene.preTaskReview.phrases.join(', ')}.
 
+# SCAFFOLDING (Level: ${level})
+- **L1 (Beginner)**: In 'fullSentences', provide 2-3 complete, easy-to-repeat sentences the user can say.
+- **L2 (Intermediate)**: In 'starters', provide 3-4 sentence starters. In 'hints', provide brief ideas.
+- **L3 (Advanced)**: In 'advancedPhrases', provide 2-3 idiomatic expressions or expansion vocabulary related to the context with translations.
+
 # OUTPUT REQUIREMENTS
 - 'ai_reply': PURE ENGLISH ONLY. No Chinese. No brackets. 
 - 'grammar_feedback': Helpful feedback (Chinese/English mix is preferred).
