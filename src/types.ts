@@ -5,6 +5,7 @@ export interface Phase {
   nameCn?: string;
   aiGoal?: string;
   userHint?: string; // Guidance for the student on what to say
+  userHintCn?: string; // Chinese translation of the user hint
 }
 
 export interface Scene {

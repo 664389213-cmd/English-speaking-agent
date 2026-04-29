@@ -661,11 +661,20 @@ export default function App() {
         <div className="flex-1 flex flex-col bg-[#fcfcfd] border-r border-brand-border relative overflow-hidden">
 
           {/* REAL-TIME HELP BOARD (对话上方固定 - 现在置顶) */}
-          <div className="bg-gradient-to-r from-blue-50 via-blue-100/50 to-indigo-50 backdrop-blur-md border-b-4 border-primary p-6 sticky top-0 z-[10] shadow-xl">
+          <div className="bg-gradient-to-r from-blue-50 via-blue-100/50 to-indigo-50 backdrop-blur-md border-2 border-primary rounded-2xl p-6 m-4 shadow-xl relative overflow-hidden">
+            {/* 装饰性边框元素 */}
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-primary/50 to-primary" />
+            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-primary/50 to-primary" />
+            <div className="absolute top-0 left-0 h-full w-1 bg-gradient-to-b from-primary via-primary/50 to-primary" />
+            <div className="absolute top-0 right-0 h-full w-1 bg-gradient-to-b from-primary via-primary/50 to-primary" />
+            <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-primary rounded-tl-lg" />
+            <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-primary rounded-tr-lg" />
+            <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-primary rounded-bl-lg" />
+            <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-primary rounded-br-lg" />
             <div className="max-w-4xl mx-auto">
               <div className="text-[16px] font-black text-primary uppercase tracking-wider mb-4 flex items-center gap-3">
                 <Check size={20} className="bg-primary text-white rounded-full p-1 animate-pulse"/>
-                <span>These may be helpful!</span>
+                <span>These may be helpful! 如果你需要帮助，看这里！</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -677,6 +686,11 @@ export default function App() {
                   <div className="text-[14px] font-bold text-text-main leading-relaxed">
                     {selectedScene.phases[currentPhaseIndex].userHint}
                   </div>
+                  {selectedScene.phases[currentPhaseIndex].userHintCn && (
+                    <div className="text-[13px] text-text-sub mt-2 pt-2 border-t border-brand-border/30 leading-relaxed">
+                      {selectedScene.phases[currentPhaseIndex].userHintCn}
+                    </div>
+                  )}
                 </div>
 
                 {/* 模块2: 引导支架 */}
@@ -684,7 +698,7 @@ export default function App() {
                   <div className="text-[12px] font-black text-white bg-primary px-3 py-1.5 rounded-full inline-block mb-3 flex items-center gap-1">
                     <Target size={14} />
                     {selectedLevel === 'L1' && 'Full Sentences'}
-                    {selectedLevel === 'L2' && 'Helpful Scaffolding'}
+                    {selectedLevel === 'L2' && 'Helpful Scaffolding 实时支架'}
                     {selectedLevel === 'L3' && 'Advanced Expressions'}
                   </div>
 
@@ -707,18 +721,12 @@ export default function App() {
                       </button>
                     ))}
 
-                    {/* L3: 地道表达 */}
-                    {selectedLevel === 'L3' && currentAdvanced.map((ap, idx) => (
-                      <div key={idx} className="bg-blue-50 border-2 border-primary px-3 py-1.5 rounded-xl text-[12px] text-text-main flex flex-col font-bold">
-                        <span>{ap.phrase}</span>
-                        <span className="text-[10px] text-text-sub font-medium">{ap.translation}</span>
-                      </div>
-                    ))}
-
-                    {/* 关键词 (作为通用补充) */}
-                    {currentKeywords.length > 0 && (
+                    {/* 关键词引导 */}
+                    {selectedLevel === 'L2' && currentKeywords.length > 0 && (
                       <>
-                        <div className="w-full h-px bg-brand-border/30 my-1" />
+                        <div className="w-full mt-2 mb-1">
+                          <span className="text-[10px] font-black text-text-sub uppercase tracking-wider">关键词 Keywords</span>
+                        </div>
                         <div className="flex flex-wrap gap-2 w-full">
                           {currentKeywords.map((wd, idx) => (
                             <span key={idx} className="text-[11px] px-3 py-1.5 bg-primary/10 text-primary rounded-lg font-bold border-2 border-primary/30">
@@ -728,6 +736,15 @@ export default function App() {
                         </div>
                       </>
                     )}
+
+                    {/* L3: 地道表达 */}
+                    {selectedLevel === 'L3' && currentAdvanced.map((ap, idx) => (
+                      <div key={idx} className="bg-blue-50 border-2 border-primary px-3 py-1.5 rounded-xl text-[12px] text-text-main flex flex-col font-bold">
+                        <span>{ap.phrase}</span>
+                        <span className="text-[10px] text-text-sub font-medium">{ap.translation}</span>
+                      </div>
+                    ))}
+
                   </div>
                 </div>
               </div>
@@ -1066,7 +1083,7 @@ export default function App() {
           {latestFeedback && (
             <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                <div className="text-[10px] font-black uppercase tracking-[0.1em] text-primary mb-3 opacity-80">
-                  Instructional Insights
+                  Suggestions & Evaluation / 建议与评价
                </div>
                <div className="text-[13px] text-text-main whitespace-pre-wrap leading-relaxed font-medium">
                   {latestFeedback}
