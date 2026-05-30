@@ -35,15 +35,15 @@ const replySchema: Schema = {
       type: Type.STRING,
       description: 'A brief simulated phonetic assessment for the whole response.',
     },
-    word_assessment_simulated: {
+       word_assessment_simulated: {
       type: Type.ARRAY,
-      description: "Word-by-word assessment of the user's PREVIOUS message. GREEN=correct, YELLOW=unclear (provide best guess in 'suggestion'), RED=error/wrong word (provide correction in 'suggestion'). Be encouraging - most words should be green if student's intent is clear!",
+      description: "Word-by-word assessment of user's PREVIOUS message. DEFAULT to GREEN unless there's a real error. GREEN=correct/makes sense (even if slight pronunciation issues), YELLOW=unclear/ambiguous, RED=completely wrong/nonsensical. Provide 'suggestion' ONLY for yellow/red. Leave suggestion empty for green. Be encouraging - 80-90% should be green if student shows good effort.",
       items: {
         type: Type.OBJECT,
         properties: {
           word: { type: Type.STRING },
           score: { type: Type.STRING, enum: ["green", "yellow", "red"] },
-          suggestion: { type: Type.STRING, description: "For yellow/red: what the word should be or what you think they meant. Leave empty for green." }
+          suggestion: { type: Type.STRING, description: "For yellow: what you think they meant. For red: correction. Leave EMPTY for green." }
         },
         required: ["word", "score"]
       }
@@ -120,16 +120,16 @@ export async function generateAIResponse(
 - 'ai_reply': PURE ENGLISH ONLY. No Chinese. No brackets.
 - 'ai_reply_cn': Provide a clear and natural Chinese translation of 'ai_reply' to help students understand better.
 - 'grammar_feedback': Helpful feedback (Chinese/English mix is preferred).
-- 'word_assessment_simulated': CRITICAL - Provide detailed word-by-word assessment of the user's PREVIOUS message:
-  * 'green': Word is correct and well-pronounced. User said it right.
-  * 'yellow': Word is unclear or might be mispronounced, but context suggests intent. Provide a 'suggestion' (what you think they meant).
-  * 'red': Word is clearly wrong, nonsensical, or extra/redundant. Provide a 'suggestion' for what they should have said.
-  * ALWAYS score most words as 'green' if the student's overall intent is clear. Be encouraging!
-  * Only mark 'yellow' if there's ambiguity. Only mark 'red' if there's a clear error.
+- 'word_assessment_simulated': CRITICAL - Provide detailed word-by-word assessment of the user's PREVIOUS message. Default to 'green' UNLESS there is a REAL ERROR:
+  * 'green' (MOST COMMON): Word is correct, makes sense in context. Even if slightly mispronounced or misspelled, mark as 'green' if user's intent is clear. LEAVE suggestion EMPTY.
+  * 'yellow' (RARE): Word is slightly off or ambiguous (e.g., "teh" instead of "the", "goed" instead of "went"). Provide best guess in 'suggestion'.
+  * 'red' (VERY RARE): Word is completely wrong, nonsensical, or doesn't belong (e.g., user said random gibberish, used totally wrong word). Provide correction in 'suggestion'.
+  * CRITICAL: If overall message makes sense and shows good effort, mark 80-90% of words as 'green'. Be encouraging and supportive!
+  * Example: User says "I go to school yesterday" → mark all words green despite grammar error, explain grammar in 'grammar_feedback' instead.
 - 'dynamic_scaffolding': Provide help for their NEXT turn.
 - 'is_session_end': Set true only if ${isFinalPhase} and the conversation naturally concludes.
 
-Return STRICT JSON.`;
+Return STRICT JSON.
 
   // 构建干净的历史记录（只传递角色和文本，不包含 parts 嵌套）
   const historyPayload = [
