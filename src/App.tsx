@@ -661,16 +661,8 @@ export default function App() {
         <div className="flex-1 flex flex-col bg-[#fcfcfd] border-r border-brand-border relative overflow-hidden">
 
           {/* REAL-TIME HELP BOARD (对话上方固定 - 现在置顶) */}
-          <div className="bg-gradient-to-r from-blue-50 via-blue-100/50 to-indigo-50 backdrop-blur-md border-2 border-primary rounded-2xl p-6 m-4 shadow-xl relative overflow-hidden">
-            {/* 装饰性边框元素 */}
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-primary/50 to-primary" />
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-primary/50 to-primary" />
-            <div className="absolute top-0 left-0 h-full w-1 bg-gradient-to-b from-primary via-primary/50 to-primary" />
-            <div className="absolute top-0 right-0 h-full w-1 bg-gradient-to-b from-primary via-primary/50 to-primary" />
-            <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-primary rounded-tl-lg" />
-            <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-primary rounded-tr-lg" />
-            <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-primary rounded-bl-lg" />
-            <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-primary rounded-br-lg" />
+          {/* 删除了外层的大蓝框和角落装饰，只保留标题及两个卡片 */}
+          <div className="px-4 pt-2">
             <div className="max-w-4xl mx-auto">
               <div className="text-[16px] font-black text-primary uppercase tracking-wider mb-4 flex items-center gap-3">
                 <Check size={20} className="bg-primary text-white rounded-full p-1 animate-pulse"/>
