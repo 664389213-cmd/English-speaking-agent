@@ -129,7 +129,7 @@ export async function generateAIResponse(
 - 'dynamic_scaffolding': Provide help for their NEXT turn.
 - 'is_session_end': Set true only if ${isFinalPhase} and the conversation naturally concludes.
 
-Return STRICT JSON.
+Return STRICT JSON.`;
 
   // 构建干净的历史记录（只传递角色和文本，不包含 parts 嵌套）
   const historyPayload = [
