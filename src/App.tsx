@@ -615,7 +615,7 @@ export default function App() {
   const currentHints = latestAiMessage?.dynamicScaffolding?.hints || [];
   const currentKeywords = latestAiMessage?.dynamicScaffolding?.keywords || selectedScene.preTaskReview.words;
   const currentFullSentences = latestAiMessage?.dynamicScaffolding?.fullSentences || [];
-  const currentAdvanced = latestAiMessage?.dynamicScaffolding?.advancedPhrases || [];
+  const currentAdvanced = latestAiMessage?.dynamicScaffolding?.advancedPhrases || (selectedLevel === 'L3' ? selectedScene.preTaskReview.phrases.map(phrase => ({ phrase, translation: phrase })) : []);
 
   const latestUserMessage = [...messages].reverse().find(m => m.role === 'user');
 

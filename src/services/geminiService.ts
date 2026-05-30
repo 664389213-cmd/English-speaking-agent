@@ -174,7 +174,7 @@ Return STRICT JSON.`;
           grammar_feedback: "System busy (Quota Exceeded).",
           next_phase_suggestion: false,
           phoneme_assessment_placeholder: "N/A",
-          dynamic_scaffolding: { starters: [], keywords: [] }
+          dynamic_scaffolding: { starters: [], keywords: [], advancedPhrases: [] }
         };
       }
 
@@ -183,7 +183,7 @@ Return STRICT JSON.`;
         grammar_feedback: "Connection error.",
         next_phase_suggestion: false,
         phoneme_assessment_placeholder: "N/A",
-        dynamic_scaffolding: { starters: [], keywords: [] }
+        dynamic_scaffolding: { starters: [], keywords: [], advancedPhrases: [] }
       };
     }
   }
@@ -194,6 +194,6 @@ Return STRICT JSON.`;
     grammar_feedback: "Unexpected error.",
     next_phase_suggestion: false,
     phoneme_assessment_placeholder: "N/A",
-    dynamic_scaffolding: { starters: [], keywords: [] }
+    dynamic_scaffolding: { starters: [], keywords: [], advancedPhrases: [] }
   };
 }
